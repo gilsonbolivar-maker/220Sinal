@@ -3,8 +3,8 @@ plugins {
 }
 
 /*
- * 220Sinal: cópia do Android do Sinal232 para a área 220.
- * Um projeto, dois apps: o AA220 (de cada operador) e o 220Sinal (o seu).
+ * Zap220: cópia do Android do Sinal232 para a área 220.
+ * Um projeto, dois apps: o AA220 (de cada operador) e o Zap220 (o seu).
  * Os dois abrem a página do site numa WebView e ganham o que o navegador não
  * tem: escutar com a tela apagada e tocar o alarme do aparelho.
  */
@@ -34,7 +34,7 @@ android {
             applicationId 'io.github.gilsonbolivar.sinal220'
             buildConfigField 'String', 'ENDERECO', '"https://gilsonbolivar-maker.github.io/220Sinal/painel/"'
             buildConfigField 'String', 'CAMINHO', '"/220Sinal/painel"'
-            resValue 'string', 'app_name', '220Sinal'
+            resValue 'string', 'app_name', 'Zap220'
         }
     }
 

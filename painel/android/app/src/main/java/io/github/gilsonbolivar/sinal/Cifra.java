@@ -20,7 +20,7 @@ import javax.crypto.spec.SecretKeySpec;
  * HKDF-SHA256, AES-GCM com IV de 12 bytes, tópicos pelo SHA-256.
  */
 final class Cifra {
-    static final String PREFIXO = "app-220sinal/v1/";   // igual ao 220Sinal/app.js
+    static final String PREFIXO = "app-220sinal/v1/";   // igual ao painel/app.js
     private static final SecureRandom SORTE = new SecureRandom();
 
     private Cifra() { }

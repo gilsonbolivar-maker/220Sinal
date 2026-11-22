@@ -1,9 +1,9 @@
-# 220Sinal — regras do repositório
+# Zap220 — regras do repositório
 
-Veio do repositório Oficina (pastas `220Sinal/` e `220Sinal-sinal/`), separado para ser só da área 220.
+O app que o Gilson usa (o painel) se chama **Zap220** (antes 220Sinal); o repositório continua 220Sinal. Veio do repositório Oficina (pastas `220Sinal/` e `220Sinal-sinal/`), separado para ser só da área 220.
 
 ## Estrutura
-- `painel/` = 220Sinal (o painel do Gilson, lado que chama). O código fica em `painel/app.js` e `painel/app.css`.
+- `painel/` = Zap220 (o painel do Gilson, lado que chama). O código fica em `painel/app.js` e `painel/app.css`.
 - `aa220/` = AA220 (app dos colegas, lado que recebe). Carrega `../painel/app.js` e `../painel/app.css`.
 - O convite do painel aponta para `../aa220/#c=…`.
 - Guarda tudo com prefixo `220-` e usa tópicos `app-220sinal/`: não se mistura com o Zap232 nem com outras áreas.

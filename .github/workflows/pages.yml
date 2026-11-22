@@ -1,4 +1,4 @@
-# Publica o 220Sinal no GitHub Pages a cada push na main.
+# Publica o Zap220 no GitHub Pages a cada push na main.
 # A primeira execução liga o Pages sozinha (configure-pages com enablement),
 # então não é preciso mexer em Settings.
 name: Publicar no GitHub Pages

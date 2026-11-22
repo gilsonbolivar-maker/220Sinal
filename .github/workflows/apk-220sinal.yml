@@ -1,8 +1,8 @@
-# Compila os APKs do AA220 e do 220Sinal (área 220) e publica em
+# Compila os APKs do AA220 e do Zap220 (área 220) e publica em
 # https://github.com/gilsonbolivar-maker/220Sinal/releases/download/220sinal-apk/aa220.apk
 # https://github.com/gilsonbolivar-maker/220Sinal/releases/download/220sinal-apk/220sinal.apk
 # Os APKs abrem a página do site; só precisa recompilar quando o código Android muda.
-name: APKs do AA220 e do 220Sinal
+name: APKs do AA220 e do Zap220
 
 on:
   push:
@@ -78,6 +78,6 @@ jobs:
           cp painel/android/app/build/outputs/apk/painel/release/app-painel-release.apk 220sinal.apk
           gh release delete 220sinal-apk --yes --cleanup-tag || true
           gh release create 220sinal-apk aa220.apk 220sinal.apk \
-            --title "AA220 e 220Sinal para Android" \
-            --notes "APKs do AA220 e do 220Sinal (área 220): escutam com a tela apagada e tocam o alarme do aparelho. Compilado de ${GITHUB_SHA::7}." \
+            --title "AA220 e Zap220 para Android" \
+            --notes "APKs do AA220 e do Zap220 (área 220): escutam com a tela apagada e tocam o alarme do aparelho. Compilado de ${GITHUB_SHA::7}." \
             --target "$GITHUB_SHA"

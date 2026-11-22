@@ -1,7 +1,7 @@
 {
   "id": "/220Sinal/painel/",
-  "name": "220Sinal",
-  "short_name": "220Sinal",
+  "name": "Zap220",
+  "short_name": "Zap220",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
