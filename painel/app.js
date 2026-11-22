@@ -17,7 +17,7 @@
    ———————————————————————————————————————————————————————————— */
 'use strict';
 
-const VERSAO = '1.6.2';   // precisa casar com a VERSAO do sw.js
+const VERSAO = '1.7.0';   // precisa casar com a VERSAO do sw.js
 
 const ROLE = document.body.dataset.role;          // 'painel' | 'sinal'
 const NOME_PAINEL = 'Zap220';                    // o que a pessoa lê; o papel interno continua "painel"
@@ -52,7 +52,9 @@ const TONES = [
   ['preciso', 'Compareça', ['COMPAREÇA'], 'Apito', false, 'Venha ao local escrito no cartão.'],
   ['olha', 'Olha aqui', ['OLHA', 'AQUI'], 'Toque curto', false, 'Só um aviso, sem pressa.'],
   // Toque dos botões de pedido (não aparece na grade dos 4 toques).
-  ['pedido', 'Pedido', ['PEDIDO'], 'Apito', false, 'Faça o que o cartão pede.']
+  ['pedido', 'Pedido', ['PEDIDO'], 'Apito', false, 'Faça o que o cartão pede.'],
+  // Toque das imagens de resultado (não aparece na grade dos 4 toques).
+  ['resultado', 'Resultado', ['RESULTADO'], 'Toque curto', false, 'Veja a imagem do resultado.']
 ];
 
 // Pedidos da área 220: um toque manda o pedido como cartão.
@@ -840,6 +842,7 @@ function receberFicha(msg, rota) {
   if (!f || !f.id) return;
   const r = entradaRecebendo(f.id, rota.chave);
   r.meta = { id: f.id, nome: clean(f.nome, 120) || 'arquivo', tipo: clean(f.tipo, 100), tamanho: +f.tamanho || 0, partes: +f.partes || 1, sha: String(f.sha || '') };
+  if (msg.tone === 'resultado') r.resultado = { quem: ROLE === 'painel' ? rota.nome : (clean(msg.who, 24) || NOME_PAINEL), nota: clean(msg.note, 80) };
   r.alarme = msg.id;
   r.ultimo = Date.now();
   vigiarPartes(f.id);
@@ -882,6 +885,7 @@ async function conferirAnexo(id) {
   r.blob = new Blob([bytes], { type: r.meta.tipo || 'application/octet-stream' });
   r.partes.clear();
   guardarArquivo(r.meta, r.blob);
+  if (r.resultado) anotarResultado({ id: r.meta.id, dir: 'entrou', quem: r.resultado.quem, nota: r.resultado.nota, ts: Date.now() });
   responder(r.chave, { kind: 'anexo-ok', anexo: id });
   mostrarAnexo(id);
 }
@@ -1000,6 +1004,93 @@ function ligarAnexar() {
     mostrar();
   };
   mostrar();
+}
+
+/* ————————————————— resultados (imagens) ————————————————— */
+
+/*
+ * Espaço para as imagens de resultado (ex.: o cartão da calculadora do TQ).
+ * "Mandar resultado" escolhe a imagem e já envia, como alarme curto, para quem
+ * está escolhido (no Zap220) ou para o Zap220 (no AA220). As imagens mandadas
+ * e recebidas ficam na galeria "Resultados" deste aparelho (as 20 mais novas).
+ */
+const RESULTADOS_MAX = 20;
+let destinosResultado = () => [];
+function listaResultados() { const l = read('resultados', []); return Array.isArray(l) ? l : []; }
+function anotarResultado(item) {
+  write('resultados', [item].concat(listaResultados().filter(x => x.id !== item.id)).slice(0, RESULTADOS_MAX));
+  desenharResultados();
+}
+function blocoResultados() {
+  return '<section class="resultados"><h3 class="pedidos-titulo">Resultados</h3>' +
+    '<button class="btn surface" type="button" id="mandar-resultado">📷 Mandar imagem de resultado</button>' +
+    '<input type="file" id="arquivo-resultado" hidden>' +
+    '<p id="resultado-estado" class="muted resultado-estado"></p>' +
+    '<div id="galeria" class="galeria"></div></section>';
+}
+function ligarResultados(destinos) {
+  destinosResultado = () => destinos;
+  const bt = $('#mandar-resultado'), input = $('#arquivo-resultado');
+  if (!bt) return;
+  bt.onclick = () => {
+    if (!destinosResultado().length) { $('#resultado-estado').textContent = 'Escolha antes para quem vai, lá em cima.'; return; }
+    input.click();
+  };
+  input.onchange = async () => {
+    const f = input.files[0];
+    input.value = '';
+    if (!f) return;
+    if (!/^image\//.test(f.type)) { $('#resultado-estado').textContent = 'Escolha uma imagem (foto ou print).'; return; }
+    if (f.size > ANEXO_MAX) { $('#resultado-estado').textContent = 'A imagem tem ' + tamanhoBonito(f.size) + '. O limite é 2 MB.'; return; }
+    unlock();
+    if (!myName()) { $('#resultado-estado').textContent = 'Escreva o seu nome antes.'; return; }
+    if (!bus || !bus.pronto()) { $('#resultado-estado').textContent = 'Ainda sem ligação com os servidores. Espere "Escuta ligada".'; return; }
+    const local = 'r-' + crypto.randomUUID();
+    guardarArquivo({ id: local, nome: clean(f.name, 120) || 'resultado', tipo: f.type }, f);
+    const ds = destinosResultado();
+    anotarResultado({ id: local, dir: 'saiu', quem: ds.length > 1 ? 'todos' : ds[0].nome, nota: clean($('#recado') ? $('#recado').value : '', 80), ts: Date.now() });
+    anexoEscolhido = f;
+    $('#resultado-estado').textContent = 'Enviando…';
+    await mandarAlarme(ds, 'resultado');
+    $('#resultado-estado').textContent = 'Enviado. A entrega aparece no Histórico.';
+  };
+  desenharResultados();
+}
+async function desenharResultados() {
+  const g = $('#galeria');
+  if (!g) return;
+  const lista = listaResultados();
+  if (!lista.length) { g.innerHTML = '<p class="muted">Nenhum resultado ainda.</p>'; return; }
+  const itens = await Promise.all(lista.map(async x => ({ x, a: await lerArquivo(x.id) })));
+  g.innerHTML = '';
+  itens.forEach(({ x, a }) => {
+    const fig = document.createElement('figure');
+    fig.className = 'resultado';
+    const hora = new Date(x.ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const legenda = (x.dir === 'saiu' ? 'Para ' : 'De ') + (x.quem || '?') + ' · ' + hora + (x.nota ? ' · ' + x.nota : '');
+    if (a && a.blob) {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(a.blob); img.alt = 'Resultado ' + legenda;
+      img.onclick = () => verResultado(a.blob, legenda);
+      fig.appendChild(img);
+    } else {
+      fig.insertAdjacentHTML('beforeend', '<div class="resultado-falta">imagem não está mais no aparelho</div>');
+    }
+    const cap = document.createElement('figcaption'); cap.textContent = legenda;
+    fig.appendChild(cap);
+    g.appendChild(fig);
+  });
+}
+/** Abre a imagem grande, por cima da tela. */
+function verResultado(blob, legenda) {
+  const v = document.createElement('div');
+  v.className = 'ver-resultado';
+  const url = URL.createObjectURL(blob);
+  v.innerHTML = '<img alt=""><p></p><button class="btn surface" type="button">Fechar</button>';
+  v.querySelector('img').src = url;
+  v.querySelector('p').textContent = legenda;
+  v.querySelector('button').onclick = () => { v.remove(); URL.revokeObjectURL(url); };
+  document.body.appendChild(v);
 }
 
 /* ————————————————— o mesmo PAINEL em vários aparelhos ————————————————— */
@@ -1133,9 +1224,9 @@ function beep(tone) {
   g.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
   if (tone === 'liga') { o.type = 'sine'; o.frequency.setValueAtTime(880, now); o.frequency.exponentialRampToValueAtTime(220, now + 0.6); }
   else if (tone === 'preciso' || tone === 'pedido') { o.type = 'square'; o.frequency.setValueAtTime(1400, now); }
-  else if (tone === 'olha') { o.type = 'triangle'; o.frequency.setValueAtTime(660, now); }
+  else if (tone === 'olha' || tone === 'resultado') { o.type = 'triangle'; o.frequency.setValueAtTime(660, now); }
   else { o.type = 'sawtooth'; o.frequency.setValueAtTime(480, now); o.frequency.linearRampToValueAtTime(920, now + 0.25); o.frequency.linearRampToValueAtTime(480, now + 0.5); }
-  g.gain.exponentialRampToValueAtTime(0.0001, now + (tone === 'olha' ? 0.25 : 0.7));
+  g.gain.exponentialRampToValueAtTime(0.0001, now + (tone === 'olha' || tone === 'resultado' ? 0.25 : 0.7));
   o.start(now); o.stop(now + 0.75);
 }
 
@@ -1270,7 +1361,7 @@ function ligarPedidos(destinos) {
   });
 }
 function toneButtons() {
-  return '<div class="grid">' + TONES.filter(t => t[0] !== 'pedido').map(t =>
+  return '<div class="grid">' + TONES.filter(t => t[0] !== 'pedido' && t[0] !== 'resultado').map(t =>
     '<button class="tone' + (t[4] ? ' hot' : '') + '" data-tone="' + t[0] + '"><b>' + t[2].join('<br>') +
     '</b><small>' + t[5] + '</small></button>').join('') + '</div>';
 }
@@ -1360,6 +1451,7 @@ function telaPainel() {
         field('recado', 'Escrever junto (opcional)', { max: 80, ph: 'Ex.: urgente, sala de controle' }) +
         blocoAnexar() + toneButtons()
       : (list.length ? '<p class="muted" style="margin-top:1rem">Toque numa pessoa para mandar.</p>' : '')) +
+    blocoResultados() +
     '<details class="historico ajustes" id="ajustes"' + (abrirAjustes ? ' open' : '') + '>' +
       '<summary>Seu nome e pessoas</summary>' +
       field('nome', 'Seu nome no alerta', { max: 24, ph: NOME_PAINEL }) +
@@ -1409,6 +1501,7 @@ function telaPainel() {
     if (destinos.length) mandarAlarme(destinos, b.dataset.tone);
   });
   ligarPedidos(destinos);
+  ligarResultados(destinos);
   atualizarPresenca();
   redesenharEnvio();
   ligarHistorico();
@@ -1466,6 +1559,7 @@ function telaSinal() {
     blocoPedidos(true) + '<div id="envio" class="envio" aria-live="polite"></div>' +
     field('recado', 'Escrever junto (opcional)', { max: 80, ph: 'Ex.: urgente, sala de controle' }) +
     blocoAnexar() + toneButtons() +
+    blocoResultados() +
     blocoHistorico() + blocoApk() +
     '<button class="btn ghost" id="sair">Trocar de convite</button></div>';
   preencherVersao();
@@ -1475,6 +1569,7 @@ function telaSinal() {
     mandarAlarme([{ chave: read('chave', ''), nome: 'o ' + NOME_PAINEL }], b.dataset.tone);
   });
   ligarPedidos([{ chave: read('chave', ''), nome: 'o ' + NOME_PAINEL }]);
+  ligarResultados([{ chave: read('chave', ''), nome: NOME_PAINEL }]);
   atualizarPresenca();
   redesenharEnvio();
   ligarHistorico();
